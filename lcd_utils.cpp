@@ -1,76 +1,64 @@
+// This file is part of CasaSoft Arduino SlideShow
+//
+// copyright (c) 2019 Roberto Ceccarelli - Casasoft
+// 
+// CasaSoft Arduino SlideShow is free software: 
+// you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
+// CasaSoft Arduino SlideShow is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+// See the GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with CasaSoft Arduino SlideShow.  
+// If not, see <http://www.gnu.org/licenses/>.
+
 #include <Arduino.h>
 #include "lcd_utils.h"
 
-void lcd_setup() {
-    uint16_t ID;
-    ID = tft.readID();
-    if (ID == 0x0D3D3) ID = 0x9481;
-    tft.begin(ID);
-    tft.setRotation(1);
-    tft.fillScreen(TFT_BLUE);
-    tft.setTextColor(TFT_YELLOW);
+// touchscreen utils
+const int TS_LEFT = 110, TS_RT = 858, TS_TOP = 85, TS_BOT = 890;
+
+HWClass HW;
+
+
+void HWClass::init()
+{
+#ifdef DEBUG
+	Serial.begin(9600);
+#endif // DEBUG
+
+	ts.diagnose_pins();
+#ifdef DEBUG
+	Serial.println(F("TS pins detected"));
+#endif // DEBUG
+
+	displayID = tft.readID();
+#ifdef DEBUG
+	Serial.print(F("Display type ID: "));
+	Serial.println(displayID);
+#endif // DEBUG
+
+	if (displayID == 0x0D3D3) displayID = 0x9481;
+	tft.begin(displayID);
+#ifdef DEBUG
+	Serial.println(F("Display started"));
+#endif // DEBUG
+
+	tft.setRotation(1);
+	tft.fillScreen(TFT_BLUE);
+	tft.setTextColor(TFT_YELLOW);
+	tft.setTextSize(3);
 }
 
 
-
-// Touchscreen utils
-
-void readResistiveTouch(void)
+void HWClass::getPointXY(void)
 {
-    tp = ts.getPoint();
-    pinMode(YP, OUTPUT);      //restore shared pins
-    pinMode(XM, OUTPUT);
-    digitalWrite(YP, HIGH);  //because TFT control pins
-    digitalWrite(XM, HIGH);
-}
-
-bool ISPRESSED(void)
-{
-    // .kbv this was too sensitive !!
-    // now touch has to be stable for 50ms
-    int count = 0;
-    bool state, oldstate;
-    while (count < 10) {
-        readResistiveTouch();
-        state = tp.z > 200;     //ADJUST THIS VALUE TO SUIT YOUR SCREEN e.g. 20 ... 250
-        if (state == oldstate) count++;
-        else count = 0;
-        oldstate = state;
-        delay(5);
-    }
-    return oldstate;
-}
-
-boolean diagnose_pins()
-{
-    int i, j, value, Apins[2], Dpins[2], Values[2], found = 0;
-    for (i = A0; i < A5; i++) pinMode(i, INPUT_PULLUP);
-    for (i = 2; i < 10; i++) pinMode(i, INPUT_PULLUP);
-    for (i = A0; i < A4; i++) {
-        pinMode(i, INPUT_PULLUP);
-        for (j = 5; j < 10; j++) {
-            pinMode(j, OUTPUT);
-            digitalWrite(j, LOW);
-            value = analogRead(i);               // ignore first reading
-            value = analogRead(i);
-            if (value < 100 && value > 0) {
-                if (found < 2) {
-                    Apins[found] = i;
-                    Dpins[found] = j;
-                    Values[found] = value;
-                }
-                found++;
-            }
-            pinMode(j, INPUT_PULLUP);
-        }
-        pinMode(i, INPUT_PULLUP);
-    }
-    if (found == 2) {
-        int idx = Values[0] < Values[1];
-        XM = Apins[!idx]; XP = Dpins[!idx]; YP = Apins[idx]; YM = Dpins[idx];
-//        ts = TouchScreen(XP, YP, XM, YM, 300);    //re-initialise with pins
-        ts = TouchScreen_kbv(XP, YP, XM, YM, 300);    //re-initialise with pins
-        return true;                              //success
-    }
-    return false;
+	// LANDSCAPE CALIBRATION    320 x 240
+	point.y = map(ts.tp.x, TS_RT, TS_LEFT, 0, 240);
+	point.x = map(ts.tp.y, TS_TOP, TS_BOT, 0, 320);
 }
